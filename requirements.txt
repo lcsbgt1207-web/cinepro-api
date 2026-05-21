@@ -2,3 +2,4 @@ flask
 flask-cors
 allocine-seances
 gunicorn
+requests
