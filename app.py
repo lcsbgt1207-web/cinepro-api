@@ -81,7 +81,7 @@ DEPT_COORDS = {
     'departement-83148': (49.00, 6.55),   # Moselle
     'departement-83116': (47.12, 3.50),   # Nièvre
     'departement-83158': (50.42, 3.08),   # Nord
-    'departement-83179': (49.42, 2.43),   # Oise ← Chambly !
+    'departement-83179': (49.25, 2.50),   # Oise ← Chambly !
     'departement-83162': (48.63, 0.10),   # Orne
     'ville-115755':      (48.86, 2.35),   # Paris
     'departement-83159': (50.45, 2.55),   # Pas-de-Calais
@@ -99,7 +99,7 @@ DEPT_COORDS = {
     'departement-83156': (43.93, 2.15),   # Tarn
     'departement-83157': (44.00, 1.35),   # Tarn-et-Garonne
     'departement-83171': (48.78, 2.48),   # Val-de-Marne
-    'departement-83172': (49.05, 2.13),   # Val-d'Oise
+    'departement-83172': (49.08, 2.08),   # Val-d'Oise
     'departement-83189': (43.40, 6.22),   # Var
     'departement-83190': (43.97, 5.35),   # Vaucluse
     'departement-83177': (46.67, -1.43),  # Vendée
@@ -213,11 +213,13 @@ def search_cinema():
 
     try:
         name_norm = normalize(name)
-        mots = [w for w in name_norm.split() if len(w) > 2]
+        # On retire les mots génériques qui polluent la recherche
+        STOP_WORDS = {'cinema', 'cine', 'le', 'la', 'les', 'du', 'de', 'des', 'salle', 'theatre'}
+        mots = [w for w in name_norm.split() if len(w) > 2 and w not in STOP_WORDS]
 
         # Trouver les 3 départements les plus proches via GPS
         if lat and lng:
-            locations_to_search = find_nearest_dept(lat, lng, top_n=3)
+            locations_to_search = find_nearest_dept(lat, lng, top_n=5)
         else:
             # Fallback : villes principales
             villes_data = api.get_top_villes()
@@ -237,6 +239,8 @@ def search_cinema():
                     for mot in mots:
                         if mot in c_name: score += 2
                         elif mot in c_addr: score += 1
+                    # Bonus distance : on favorise le premier département (le plus proche)
+                    if loc_id == locations_to_search[0]: score += 1
                     if score > best_score and score >= len(mots):
                         best_score = score
                         best = {
