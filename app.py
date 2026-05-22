@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from allocineAPI.allocineAPI import allocineAPI
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import unicodedata, re
 
 app = Flask(__name__)
@@ -9,7 +10,6 @@ CORS(app)
 api = allocineAPI()
 
 def normalize(text):
-    """Minuscules, sans accents, sans ponctuation"""
     text = str(text).lower()
     text = unicodedata.normalize('NFD', text)
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
@@ -59,10 +59,43 @@ def departements():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def search_in_location(loc_id, name_norm, city_norm, mots):
+    """Cherche un cinéma dans un emplacement donné. Retourne (score, résultat) ou None."""
+    try:
+        data = api.get_cinema(loc_id)
+        cinemas_list = data if isinstance(data, list) else data.get('cinemas', [])
+        best = None
+        best_score = 0
+        for c in cinemas_list:
+            c_name = normalize(c.get('name', ''))
+            c_addr = normalize(c.get('address', ''))
+            score = 0
+            for mot in mots:
+                if mot in c_name:
+                    score += 2
+                elif mot in c_addr:
+                    score += 1
+            if city_norm and city_norm in c_addr:
+                score += 3
+            if city_norm and city_norm in c_name:
+                score += 2
+            if score > best_score and score >= len(mots):
+                best_score = score
+                best = {
+                    "id": c.get('id'),
+                    "name": c.get('name'),
+                    "address": c.get('address'),
+                    "score": score,
+                    "loc_id": loc_id
+                }
+        return best
+    except:
+        return None
+
 @app.route('/search-cinema')
 def search_cinema():
     """
-    Cherche un cinéma par nom dans toutes les villes ET départements.
+    Cherche un cinéma par nom dans toutes les villes ET départements en parallèle.
     Params: name (obligatoire), city (optionnel)
     Exemple: /search-cinema?name=Megarama+Chambly&city=Chambly
     """
@@ -72,7 +105,7 @@ def search_cinema():
         return jsonify({"error": "name manquant"}), 400
 
     try:
-        # Récupère toutes les villes ET tous les départements
+        # Récupère villes + départements
         villes_data = api.get_top_villes()
         dept_data = api.get_departements()
 
@@ -89,36 +122,20 @@ def search_cinema():
         best = None
         best_score = 0
 
-        for loc_id in all_locations:
-            try:
-                data = api.get_cinema(loc_id)
-                cinemas_list = data if isinstance(data, list) else data.get('cinemas', [])
-                for c in cinemas_list:
-                    c_name = normalize(c.get('name', ''))
-                    c_addr = normalize(c.get('address', ''))
-
-                    score = 0
-                    for mot in mots:
-                        if mot in c_name:
-                            score += 2
-                        elif mot in c_addr:
-                            score += 1
-                    if city_norm and city_norm in c_addr:
-                        score += 3
-                    if city_norm and city_norm in c_name:
-                        score += 2
-
-                    if score > best_score and score >= len(mots):
-                        best_score = score
-                        best = {
-                            "id": c.get('id'),
-                            "name": c.get('name'),
-                            "address": c.get('address'),
-                            "score": score,
-                            "loc_id": loc_id
-                        }
-            except:
-                continue
+        # Recherche en parallèle avec max 10 threads et timeout 25s
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(search_in_location, loc_id, name_norm, city_norm, mots): loc_id
+                for loc_id in all_locations
+            }
+            for future in as_completed(futures, timeout=25):
+                result = future.result()
+                if result and result['score'] > best_score:
+                    best_score = result['score']
+                    best = result
+                    # Si score très élevé (nom + ville trouvés), on arrête
+                    if best_score >= (len(mots) * 2 + 3):
+                        break
 
         if best:
             return jsonify(best)
