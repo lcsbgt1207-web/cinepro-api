@@ -8,42 +8,137 @@ app = Flask(__name__)
 CORS(app)
 api = allocineAPI()
 
-# Mapping code postal → ID département AlloCiné
-# Couvre tous les départements français
+# Mapping code département → ID AlloCiné (vrais IDs récupérés depuis /departements)
 DEPT_MAP = {
-    '01': 'departement-83191', '02': 'departement-83178', '03': 'departement-83111',
-    '04': 'departement-83185', '05': 'departement-83186', '06': 'departement-83187',
-    '07': 'departement-83112', '08': 'departement-83179', '09': 'departement-83155',
-    '10': 'departement-83180', '11': 'departement-83156', '12': 'departement-83113',
-    '13': 'departement-83188', '14': 'departement-83166', '15': 'departement-83114',
-    '16': 'departement-83157', '17': 'departement-83158', '18': 'departement-83115',
-    '19': 'departement-83116', '21': 'departement-83192', '22': 'departement-83167',
-    '23': 'departement-83117', '24': 'departement-83159', '25': 'departement-83193',
-    '26': 'departement-83189', '27': 'departement-83168', '28': 'departement-83169',
-    '29': 'departement-83170', '30': 'departement-83160', '31': 'departement-83161',
-    '32': 'departement-83162', '33': 'departement-83163', '34': 'departement-83164',
-    '35': 'departement-83171', '36': 'departement-83118', '37': 'departement-83119',
-    '38': 'departement-83190', '39': 'departement-83194', '40': 'departement-83165',
-    '41': 'departement-83120', '42': 'departement-83195', '43': 'departement-83121',
-    '44': 'departement-83172', '45': 'departement-83122', '46': 'departement-83123',
-    '47': 'departement-83124', '48': 'departement-83125', '49': 'departement-83173',
-    '50': 'departement-83174', '51': 'departement-83181', '52': 'departement-83182',
-    '53': 'departement-83175', '54': 'departement-83196', '55': 'departement-83183',
-    '56': 'departement-83176', '57': 'departement-83197', '58': 'departement-83126',
-    '59': 'departement-83198', '60': 'departement-83184', '61': 'departement-83177',
-    '62': 'departement-83199', '63': 'departement-83127', '64': 'departement-83128',
-    '65': 'departement-83129', '66': 'departement-83130', '67': 'departement-83200',
-    '68': 'departement-83201', '69': 'departement-83202', '70': 'departement-83203',
-    '71': 'departement-83131', '72': 'departement-83132', '73': 'departement-83204',
-    '74': 'departement-83205', '75': 'ville-115755',      '76': 'departement-83133',
-    '77': 'departement-83206', '78': 'departement-83207', '79': 'departement-83134',
-    '80': 'departement-83135', '81': 'departement-83136', '82': 'departement-83137',
-    '83': 'departement-83138', '84': 'departement-83139', '85': 'departement-83140',
-    '86': 'departement-83141', '87': 'departement-83142', '88': 'departement-83208',
-    '89': 'departement-83143', '90': 'departement-83209', '91': 'departement-83210',
-    '92': 'departement-83211', '93': 'departement-83212', '94': 'departement-83213',
-    '95': 'departement-83214', '971': 'departement-83215', '972': 'departement-83216',
-    '973': 'departement-83217', '974': 'departement-83218',
+    'Ain': 'departement-83191',
+    'Aisne': 'departement-83178',
+    'Allier': 'departement-83111',
+    'Alpes-de-Haute-Provence': 'departement-83185',
+    'Alpes-Maritimes': 'departement-83187',
+    'Ardeche': 'departement-83112',
+    'Ardennes': 'departement-83129',
+    'Ariege': 'departement-83155',
+    'Aube': 'departement-83130',
+    'Aude': 'departement-83138',
+    'Aveyron': 'departement-83151',
+    'Bas-Rhin': 'departement-83104',
+    'Bouches-du-Rhone': 'departement-83188',
+    'Calvados': 'departement-83160',
+    'Cantal': 'departement-83112',
+    'Charente': 'departement-83181',
+    'Charente-Maritime': 'departement-83182',
+    'Cher': 'departement-83123',
+    'Correze': 'departement-83143',
+    'Corse-du-Sud': 'departement-265496',
+    'Cote-dOr': 'departement-83115',
+    'Cotes-dArmor': 'departement-83119',
+    'Creuse': 'departement-83144',
+    'Deux-Sevres': 'departement-83183',
+    'Dordogne': 'departement-83106',
+    'Doubs': 'departement-83193',
+    'Drome': 'departement-83189',
+    'Essonne': 'departement-83168',
+    'Eure': 'departement-83163',
+    'Eure-et-Loir': 'departement-83120',
+    'Finistere': 'departement-83120',
+    'Gard': 'departement-83139',
+    'Gers': 'departement-83153',
+    'Gironde': 'departement-83107',
+    'Guadeloupe': 'departement-83199',
+    'Guyane': 'departement-83201',
+    'Haut-Rhin': 'departement-83105',
+    'Haute-Corse': 'departement-83133',
+    'Haute-Garonne': 'departement-83152',
+    'Haute-Loire': 'departement-83113',
+    'Haute-Marne': 'departement-83132',
+    'Haute-Saone': 'departement-83136',
+    'Haute-Savoie': 'departement-83198',
+    'Haute-Vienne': 'departement-83145',
+    'Hautes-Alpes': 'departement-83186',
+    'Hautes-Pyrenees': 'departement-83155',
+    'Hauts-de-Seine': 'departement-83169',
+    'Herault': 'departement-83140',
+    'Ille-et-Vilaine': 'departement-83121',
+    'Indre': 'departement-83125',
+    'Indre-et-Loire': 'departement-83126',
+    'Isere': 'departement-83194',
+    'Jura': 'departement-83135',
+    'Landes': 'departement-83108',
+    'Loir-et-Cher': 'departement-83127',
+    'Loire': 'departement-83195',
+    'Loire-Atlantique': 'departement-83173',
+    'Loiret': 'departement-83128',
+    'Lot': 'departement-83154',
+    'Lot-et-Garonne': 'departement-83109',
+    'Lozere': 'departement-83141',
+    'Maine-et-Loire': 'departement-83174',
+    'Manche': 'departement-83161',
+    'Marne': 'departement-83131',
+    'Martinique': 'departement-83200',
+    'Mayenne': 'departement-83175',
+    'Meurthe-et-Moselle': 'departement-83146',
+    'Meuse': 'departement-83147',
+    'Morbihan': 'departement-83122',
+    'Moselle': 'departement-83148',
+    'Nievre': 'departement-83116',
+    'Nord': 'departement-83158',
+    'Oise': 'departement-83179',
+    'Orne': 'departement-83162',
+    'Paris': 'ville-115755',
+    'Pas-de-Calais': 'departement-83159',
+    'Puy-de-Dome': 'departement-83114',
+    'Pyrenees-Atlantiques': 'departement-83110',
+    'Pyrenees-Orientales': 'departement-83142',
+    'Reunion': 'departement-83189',
+    'Rhone': 'departement-83202',
+    'Saone-et-Loire': 'departement-83196',
+    'Sarthe': 'departement-83117',
+    'Savoie': 'departement-83197',
+    'Seine-et-Marne': 'departement-83166',
+    'Seine-Maritime': 'departement-83164',
+    'Seine-Saint-Denis': 'departement-83170',
+    'Somme': 'departement-83180',
+    'Tarn': 'departement-83156',
+    'Tarn-et-Garonne': 'departement-83157',
+    'Val-dOise': 'departement-83172',
+    'Val-de-Marne': 'departement-83171',
+    'Var': 'departement-83189',
+    'Vaucluse': 'departement-83190',
+    'Vendee': 'departement-83177',
+    'Vienne': 'departement-83184',
+    'Vosges': 'departement-83149',
+    'Yonne': 'departement-83118',
+    'Yvelines': 'departement-83167',
+}
+
+# Mapping code postal (2 premiers chiffres) → nom département
+CP_TO_DEPT = {
+    '01':'Ain','02':'Aisne','03':'Allier','04':'Alpes-de-Haute-Provence',
+    '05':'Hautes-Alpes','06':'Alpes-Maritimes','07':'Ardeche','08':'Ardennes',
+    '09':'Ariege','10':'Aube','11':'Aude','12':'Aveyron','13':'Bouches-du-Rhone',
+    '14':'Calvados','15':'Cantal','16':'Charente','17':'Charente-Maritime',
+    '18':'Cher','19':'Correze','20':'Corse-du-Sud','21':'Cote-dOr',
+    '22':'Cotes-dArmor','23':'Creuse','24':'Dordogne','25':'Doubs',
+    '26':'Drome','27':'Eure','28':'Eure-et-Loir','29':'Finistere',
+    '30':'Gard','31':'Haute-Garonne','32':'Gers','33':'Gironde',
+    '34':'Herault','35':'Ille-et-Vilaine','36':'Indre','37':'Indre-et-Loire',
+    '38':'Isere','39':'Jura','40':'Landes','41':'Loir-et-Cher',
+    '42':'Loire','43':'Haute-Loire','44':'Loire-Atlantique','45':'Loiret',
+    '46':'Lot','47':'Lot-et-Garonne','48':'Lozere','49':'Maine-et-Loire',
+    '50':'Manche','51':'Marne','52':'Haute-Marne','53':'Mayenne',
+    '54':'Meurthe-et-Moselle','55':'Meuse','56':'Morbihan','57':'Moselle',
+    '58':'Nievre','59':'Nord','60':'Oise','61':'Orne',
+    '62':'Pas-de-Calais','63':'Puy-de-Dome','64':'Pyrenees-Atlantiques',
+    '65':'Hautes-Pyrenees','66':'Pyrenees-Orientales','67':'Bas-Rhin',
+    '68':'Haut-Rhin','69':'Rhone','70':'Haute-Saone','71':'Saone-et-Loire',
+    '72':'Sarthe','73':'Savoie','74':'Haute-Savoie','75':'Paris',
+    '76':'Seine-Maritime','77':'Seine-et-Marne','78':'Yvelines',
+    '79':'Deux-Sevres','80':'Somme','81':'Tarn','82':'Tarn-et-Garonne',
+    '83':'Var','84':'Vaucluse','85':'Vendee','86':'Vienne',
+    '87':'Haute-Vienne','88':'Vosges','89':'Yonne','90':'Territoire-de-Belfort',
+    '91':'Essonne','92':'Hauts-de-Seine','93':'Seine-Saint-Denis',
+    '94':'Val-de-Marne','95':'Val-dOise',
+    '971':'Guadeloupe','972':'Martinique','973':'Guyane','974':'Reunion',
 }
 
 def normalize(text):
@@ -53,16 +148,15 @@ def normalize(text):
     text = re.sub(r'[^a-z0-9 ]', ' ', text)
     return re.sub(r'\s+', ' ', text).strip()
 
-def extract_dept(address):
-    """Extrait le code département depuis une adresse (cherche un code postal 5 chiffres)."""
+def extract_dept_id(address):
+    """Extrait l'ID département AlloCiné depuis une adresse contenant un code postal."""
     match = re.search(r'\b(\d{5})\b', address or '')
     if match:
         cp = match.group(1)
-        if cp.startswith('971'): return '971'
-        if cp.startswith('972'): return '972'
-        if cp.startswith('973'): return '973'
-        if cp.startswith('974'): return '974'
-        return cp[:2]
+        code = cp[:3] if cp.startswith(('971','972','973','974')) else cp[:2]
+        dept_name = CP_TO_DEPT.get(code)
+        if dept_name:
+            return DEPT_MAP.get(dept_name)
     return None
 
 @app.route('/')
@@ -111,9 +205,8 @@ def departements():
 @app.route('/search-cinema')
 def search_cinema():
     """
-    Cherche un cinéma par nom + code postal dans le bon département uniquement.
-    Params: name (obligatoire), address (optionnel - adresse Google avec code postal)
-    Exemple: /search-cinema?name=Megarama+Chambly&address=1+place+Chamblyrama+60230+Chambly
+    Cherche un cinéma par nom dans le bon département via le code postal.
+    Params: name (obligatoire), address (avec code postal, ex: 60230)
     """
     name = request.args.get('name', '').strip()
     address = request.args.get('address', '').strip()
@@ -122,18 +215,17 @@ def search_cinema():
 
     try:
         name_norm = normalize(name)
-        addr_norm = normalize(address)
         mots = [w for w in name_norm.split() if len(w) > 2]
 
-        # Déterminer les emplacements à chercher
-        dept_code = extract_dept(address)
+        # Construire la liste des emplacements à chercher
         locations_to_search = []
 
-        if dept_code and dept_code in DEPT_MAP:
-            # On cherche d'abord dans le bon département
-            locations_to_search.append(DEPT_MAP[dept_code])
+        # 1. Département ciblé via code postal (prioritaire)
+        dept_id = extract_dept_id(address)
+        if dept_id:
+            locations_to_search.append(dept_id)
 
-        # Fallback : toutes les villes principales
+        # 2. Fallback : villes principales
         villes_data = api.get_top_villes()
         if isinstance(villes_data, list):
             for v in villes_data:
@@ -154,9 +246,6 @@ def search_cinema():
                     for mot in mots:
                         if mot in c_name: score += 2
                         elif mot in c_addr: score += 1
-                    if addr_norm:
-                        # Bonus si code postal ou ville correspondent
-                        if dept_code and dept_code in c_addr: score += 3
                     if score > best_score and score >= len(mots):
                         best_score = score
                         best = {
@@ -166,8 +255,8 @@ def search_cinema():
                             "score": score,
                             "loc_id": loc_id
                         }
-                # Si on a un bon résultat dans le bon département, on arrête
-                if best and best['loc_id'] == DEPT_MAP.get(dept_code) and best_score >= len(mots) * 2:
+                # Bon résultat dans le département ciblé → on arrête
+                if best and loc_id == dept_id and best_score >= len(mots) * 2:
                     break
             except:
                 continue
