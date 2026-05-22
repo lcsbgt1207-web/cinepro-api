@@ -51,10 +51,18 @@ def villes():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/departements')
+def departements():
+    try:
+        data = api.get_departements()
+        return jsonify({"departements": data})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/search-cinema')
 def search_cinema():
     """
-    Cherche un cinéma par nom et ville, retourne son ID AlloCiné.
+    Cherche un cinéma par nom dans toutes les villes ET départements.
     Params: name (obligatoire), city (optionnel)
     Exemple: /search-cinema?name=Megarama+Chambly&city=Chambly
     """
@@ -64,48 +72,31 @@ def search_cinema():
         return jsonify({"error": "name manquant"}), 400
 
     try:
-        # Liste des IDs de villes à essayer
-        # On utilise get_top_villes() si disponible, sinon liste fixe
-        VILLES_IDS = [
-            'ville-115755',  # Paris
-            'ville-113315',  # Lyon
-            'ville-96943',   # Bordeaux
-            'ville-98857',   # Grenoble
-            'ville-107951',  # Lille
-            'ville-87860',   # Aix-en-Provence
-            'ville-101187',  # Nantes
-            'ville-98024',   # Rennes
-            'ville-96373',   # Toulouse
-            'ville-112664',  # Strasbourg
-            'ville-124868',  # Nice
-            'ville-97612',   # Montpellier
-            'ville-85268',   # Cannes
-            'ville-91241',   # Dijon
-            'ville-85327',   # Antibes
-            'ville-98662',   # Tours
-            'ville-110514',  # Clermont-Ferrand
-            'ville-87914',   # Marseille
-            'ville-124868',  # Monaco
-        ]
+        # Récupère toutes les villes ET tous les départements
+        villes_data = api.get_top_villes()
+        dept_data = api.get_departements()
+
+        all_locations = []
+        if isinstance(villes_data, list):
+            all_locations += [v['id'] for v in villes_data if 'id' in v]
+        if isinstance(dept_data, list):
+            all_locations += [d['id'] for d in dept_data if 'id' in d]
 
         name_norm = normalize(name)
         city_norm = normalize(city) if city else ''
-
-        # Mots clés importants du nom (> 2 lettres)
         mots = [w for w in name_norm.split() if len(w) > 2]
 
         best = None
         best_score = 0
 
-        for ville_id in VILLES_IDS:
+        for loc_id in all_locations:
             try:
-                data = api.get_cinema(ville_id)
+                data = api.get_cinema(loc_id)
                 cinemas_list = data if isinstance(data, list) else data.get('cinemas', [])
                 for c in cinemas_list:
                     c_name = normalize(c.get('name', ''))
                     c_addr = normalize(c.get('address', ''))
 
-                    # Score de correspondance
                     score = 0
                     for mot in mots:
                         if mot in c_name:
@@ -124,7 +115,7 @@ def search_cinema():
                             "name": c.get('name'),
                             "address": c.get('address'),
                             "score": score,
-                            "ville_id": ville_id
+                            "loc_id": loc_id
                         }
             except:
                 continue
