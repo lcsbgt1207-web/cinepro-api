@@ -3,3 +3,4 @@ flask-cors
 allocine-seances
 gunicorn
 requests
+geopy
