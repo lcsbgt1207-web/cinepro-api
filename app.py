@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from allocineAPI.allocineAPI import allocineAPI
-from datetime import datetime
+from datetime import datetime, timedelta
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import unicodedata, re, math, time, json, os
@@ -193,6 +193,60 @@ def seances():
     try:
         data = api.get_showtime(cinema_id, date_str)
         return jsonify({"cinema_id": cinema_id, "date": date_str, "seances": data})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/seances-auto')
+def seances_auto():
+    cinema_id = request.args.get('id', '')
+    start_date = request.args.get('date', datetime.today().strftime('%Y-%m-%d'))
+    days = int(request.args.get('days', 7))
+
+    if not cinema_id:
+        return jsonify({"error": "id manquant"}), 400
+
+    try:
+        base_date = datetime.strptime(start_date, '%Y-%m-%d')
+
+        attempts = []
+
+        for offset in range(days + 1):
+            current_date = (base_date + timedelta(days=offset)).strftime('%Y-%m-%d')
+
+            try:
+                data = api.get_showtime(cinema_id, current_date)
+                count = len(data) if isinstance(data, list) else 0
+
+                attempts.append({
+                    "date": current_date,
+                    "count": count
+                })
+
+                if count > 0:
+                    return jsonify({
+                        "cinema_id": cinema_id,
+                        "requested_date": start_date,
+                        "date": current_date,
+                        "auto": True,
+                        "attempts": attempts,
+                        "seances": data
+                    })
+
+            except Exception as inner_error:
+                attempts.append({
+                    "date": current_date,
+                    "error": str(inner_error)
+                })
+
+        return jsonify({
+            "cinema_id": cinema_id,
+            "requested_date": start_date,
+            "date": start_date,
+            "auto": True,
+            "attempts": attempts,
+            "seances": []
+        })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
