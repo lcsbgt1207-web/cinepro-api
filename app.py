@@ -384,7 +384,7 @@ def search_cinema():
         return jsonify({"error": "name manquant"}), 400
 
     try:
-        STOP_WORDS = {'cinema', 'cine', 'le', 'la', 'les', 'du', 'de', 'des', 'salle', 'theatre'}
+        STOP_WORDS = {'le', 'la', 'les', 'du', 'de', 'des', 'salle', 'theatre', 'cine'}
         name_norm = normalize(name)
         mots = [w for w in name_norm.split() if len(w) > 2 and w not in STOP_WORDS]
 
@@ -409,7 +409,7 @@ def search_cinema():
                         if mot in c_name: score += 2
                         elif mot in c_addr: score += 1
                     if loc_id == locations_to_search[0]: score += 1
-                    if score > best_score and score >= len(mots):
+                    if score > best_score and score >= max(1, len(mots) - 1):
                         best_score = score
                         best = {
                             "id": c.get('id'),
