@@ -14,6 +14,14 @@ api = allocineAPI()
 COORDS_CACHE = {}
 CACHE_FILE = '/tmp/coords_cache.json'
 
+# Cache des séances (clé: cinema_id|date, valeur: {data, timestamp})
+SEANCES_CACHE = {}
+SEANCES_CACHE_TTL = 3600  # 1 heure
+
+# Cache search-cinema (clé: nom normalisé, valeur: {data, timestamp})
+SEARCH_CACHE = {}
+SEARCH_CACHE_TTL = 86400  # 24 heures
+
 # Charger le cache depuis le disque si disponible
 if os.path.exists(CACHE_FILE):
     try:
@@ -190,8 +198,19 @@ def seances():
     date_str = request.args.get('date', datetime.today().strftime('%Y-%m-%d'))
     if not cinema_id:
         return jsonify({"error": "id manquant"}), 400
+
+    # Vérifier le cache séances
+    cache_key = f"{cinema_id}|{date_str}"
+    now = time.time()
+    if cache_key in SEANCES_CACHE:
+        entry = SEANCES_CACHE[cache_key]
+        if now - entry['ts'] < SEANCES_CACHE_TTL:
+            return jsonify({"cinema_id": cinema_id, "date": date_str, "seances": entry['data'], "cached": True})
+
     try:
         data = api.get_showtime(cinema_id, date_str)
+        # Sauvegarder dans le cache
+        SEANCES_CACHE[cache_key] = {'data': data, 'ts': now}
         return jsonify({"cinema_id": cinema_id, "date": date_str, "seances": data})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -207,55 +226,43 @@ def seances_auto():
 
     try:
         base_date = datetime.strptime(start_date, '%Y-%m-%d')
-
         attempts = []
 
         for offset in range(days + 1):
             current_date = (base_date + timedelta(days=offset)).strftime('%Y-%m-%d')
+            cache_key = f"{cinema_id}|{current_date}"
+            now = time.time()
+
+            # Vérifier le cache
+            if cache_key in SEANCES_CACHE and now - SEANCES_CACHE[cache_key]['ts'] < SEANCES_CACHE_TTL:
+                data = SEANCES_CACHE[cache_key]['data']
+                count = len(data) if isinstance(data, list) else 0
+                if count > 0:
+                    return jsonify({"cinema_id": cinema_id, "requested_date": start_date,
+                                    "date": current_date, "auto": True, "cached": True,
+                                    "attempts": attempts, "seances": data})
+                continue
 
             try:
                 data = api.get_showtime(cinema_id, current_date)
                 count = len(data) if isinstance(data, list) else 0
-
-                attempts.append({
-                    "date": current_date,
-                    "count": count
-                })
-
+                SEANCES_CACHE[cache_key] = {'data': data, 'ts': now}
+                attempts.append({"date": current_date, "count": count})
                 if count > 0:
-                    return jsonify({
-                        "cinema_id": cinema_id,
-                        "requested_date": start_date,
-                        "date": current_date,
-                        "auto": True,
-                        "attempts": attempts,
-                        "seances": data
-                    })
-
+                    return jsonify({"cinema_id": cinema_id, "requested_date": start_date,
+                                    "date": current_date, "auto": True,
+                                    "attempts": attempts, "seances": data})
             except Exception as inner_error:
-                attempts.append({
-                    "date": current_date,
-                    "error": str(inner_error)
-                })
+                attempts.append({"date": current_date, "error": str(inner_error)})
 
-        return jsonify({
-            "cinema_id": cinema_id,
-            "requested_date": start_date,
-            "date": start_date,
-            "auto": True,
-            "attempts": attempts,
-            "seances": []
-        })
+        return jsonify({"cinema_id": cinema_id, "requested_date": start_date,
+                        "date": start_date, "auto": True, "attempts": attempts, "seances": []})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/cinemas')
 def cinemas():
-    """
-    Retourne les cinémas d'un département avec coordonnées GPS.
-    Params: loc (ID département), lat/lng (optionnel, pour trier par distance)
-    """
     location_id = request.args.get('loc', '')
     try:
         user_lat = float(request.args.get('lat', 0))
@@ -280,12 +287,10 @@ def cinemas():
                 "lat": coords[0] if coords else None,
                 "lng": coords[1] if coords else None,
             }
-            # Calcul distance si position utilisateur fournie
             if user_lat and user_lng and coords:
                 cinema['distance_km'] = round(haversine(user_lat, user_lng, coords[0], coords[1]), 2)
             result.append(cinema)
 
-        # Trier par distance si disponible
         if user_lat and user_lng:
             result.sort(key=lambda x: x.get('distance_km', 9999))
 
@@ -295,11 +300,6 @@ def cinemas():
 
 @app.route('/cinemas-proches')
 def cinemas_proches():
-    """
-    Point d'entrée principal : retourne les cinémas proches d'une position GPS.
-    Cherche dans les 2 départements les plus proches.
-    Params: lat, lng (obligatoires), radius_km (optionnel, défaut 30)
-    """
     try:
         lat = float(request.args.get('lat', 0))
         lng = float(request.args.get('lng', 0))
@@ -311,9 +311,7 @@ def cinemas_proches():
         return jsonify({"error": "lat et lng obligatoires"}), 400
 
     try:
-        # Trouver les 2 départements les plus proches
         dept_ids = find_nearest_depts(lat, lng, top_n=2)
-
         all_cinemas = []
         seen_ids = set()
 
@@ -325,17 +323,13 @@ def cinemas_proches():
                     if c.get('id') in seen_ids:
                         continue
                     seen_ids.add(c.get('id'))
-
                     address = c.get('address', '')
                     coords = geocode_address(address)
-
                     if not coords:
                         continue
-
                     dist = haversine(lat, lng, coords[0], coords[1])
                     if dist > radius_km:
                         continue
-
                     all_cinemas.append({
                         "id": c.get('id'),
                         "name": c.get('name'),
@@ -347,9 +341,7 @@ def cinemas_proches():
             except:
                 continue
 
-        # Trier par distance
         all_cinemas.sort(key=lambda x: x['distance_km'])
-
         return jsonify({"cinemas": all_cinemas, "count": len(all_cinemas)})
 
     except Exception as e:
@@ -382,6 +374,14 @@ def search_cinema():
 
     if not name:
         return jsonify({"error": "name manquant"}), 400
+
+    # Vérifier le cache search
+    cache_key = normalize(name)
+    now = time.time()
+    if cache_key in SEARCH_CACHE:
+        entry = SEARCH_CACHE[cache_key]
+        if now - entry['ts'] < SEARCH_CACHE_TTL:
+            return jsonify({**entry['data'], "cached": True})
 
     try:
         STOP_WORDS = {'le', 'la', 'les', 'du', 'de', 'des', 'salle', 'theatre', 'cine'}
@@ -424,6 +424,7 @@ def search_cinema():
                 continue
 
         if best:
+            SEARCH_CACHE[cache_key] = {'data': best, 'ts': now}
             return jsonify(best)
         else:
             return jsonify({"id": None, "message": "Cinéma non trouvé"})
@@ -432,4 +433,4 @@ def search_cinema():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
