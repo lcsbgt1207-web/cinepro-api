@@ -138,6 +138,11 @@ DEPT_COORDS = {
     'departement-83179': (49.25, 2.50),
     'departement-83162': (48.63, 0.10),
     'ville-115755':      (48.86, 2.35),
+    'ville-83172':       (49.08, 2.08),  # Val-d'Oise (L'Isle-Adam, Cergy...)
+    'ville-83166':       (48.75, 2.92),  # Val-de-Marne
+    'ville-83170':       (48.92, 2.40),  # Seine-Saint-Denis
+    'ville-83171':       (48.78, 2.48),  # Seine-et-Marne ouest
+    'ville-83179':       (49.25, 2.50),  # Oise sud
     'departement-83159': (50.45, 2.55),
     'departement-83114': (45.77, 3.08),
     'departement-83110': (43.38, -0.77),
