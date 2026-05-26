@@ -380,8 +380,10 @@ def search_cinema():
     if not name:
         return jsonify({"error": "name manquant"}), 400
 
-    # Vérifier le cache search
-    cache_key = normalize(name)
+    # Clé de cache incluant lat/lng arrondis pour distinguer les cinémas homonymes
+    lat_r = round(lat, 2)
+    lng_r = round(lng, 2)
+    cache_key = f"{normalize(name)}|{lat_r}|{lng_r}"
     now = time.time()
     if cache_key in SEARCH_CACHE:
         entry = SEARCH_CACHE[cache_key]
@@ -389,18 +391,24 @@ def search_cinema():
             return jsonify({**entry['data'], "cached": True})
 
     try:
-        STOP_WORDS = {'le', 'la', 'les', 'du', 'de', 'des', 'salle', 'theatre', 'cine'}
+        STOP_WORDS = {'le', 'la', 'les', 'du', 'de', 'des', 'salle', 'theatre', 'cine', 'cinema'}
         name_norm = normalize(name)
+        # Garder tous les mots significatifs (longueur > 2, hors stop words)
         mots = [w for w in name_norm.split() if len(w) > 2 and w not in STOP_WORDS]
 
+        # Si aucun mot significatif, utiliser tous les mots de plus de 2 lettres
+        if not mots:
+            mots = [w for w in name_norm.split() if len(w) > 2]
+
         if lat and lng:
-            locations_to_search = find_nearest_depts(lat, lng, top_n=5)
+            # Chercher dans plus de départements pour couvrir les zones frontières
+            locations_to_search = find_nearest_depts(lat, lng, top_n=8)
         else:
             villes_data = api.get_top_villes()
             locations_to_search = [v['id'] for v in villes_data if 'id' in v] if isinstance(villes_data, list) else []
 
         best = None
-        best_score = 0
+        best_score = -1
 
         for loc_id in locations_to_search:
             try:
@@ -409,21 +417,36 @@ def search_cinema():
                 for c in cinemas_list:
                     c_name = normalize(c.get('name', ''))
                     c_addr = normalize(c.get('address', ''))
-                    score = 0
+
+                    # Score par correspondance de mots dans le nom
+                    name_score = 0
                     for mot in mots:
-                        if mot in c_name: score += 2
-                        elif mot in c_addr: score += 1
-                    if loc_id == locations_to_search[0]: score += 1
-                    if score > best_score and score >= max(1, len(mots) - 1):
-                        best_score = score
+                        if mot in c_name:
+                            name_score += 3  # Mot trouvé dans le nom : score élevé
+                        elif mot in c_addr:
+                            name_score += 1  # Mot trouvé dans l'adresse : score faible
+
+                    # Bonus si le nom du cinéma contient le nom recherché tel quel
+                    if name_norm in c_name:
+                        name_score += 5
+
+                    # Pas de geocoding ici : trop lent (50 cinémas x 0.5s = 25s de timeout)
+                    # Le scoring par nom seul suffit pour distinguer le bon cinéma
+                    total_score = name_score
+
+                    # Exiger au moins 1 mot du nom trouvé dans le nom du cinéma
+                    if name_score >= 3 and total_score > best_score:
+                        best_score = total_score
                         best = {
                             "id": c.get('id'),
                             "name": c.get('name'),
                             "address": c.get('address'),
-                            "score": score,
-                            "loc_id": loc_id
+                            "score": total_score,
+                            "loc_id": loc_id,
                         }
-                if best and loc_id == locations_to_search[0] and best_score >= len(mots) * 2:
+
+                # Arrêt anticipé si match parfait sur le nom
+                if best and best_score >= len(mots) * 3 + 5:
                     break
             except:
                 continue
